@@ -5,7 +5,17 @@
 
 (in-package #:cl-quantum)
 
-(defvar i #C(0 1))
+(alexandria:define-constant +i+ #C(0 1))
+
+(alexandria:define-constant +ket-0+ :0)
+
+(alexandria:define-constant +ket-1+ :1)
+
+(alexandria:define-constant +pauli-x+ (list (list 0 1) (list 1 0)) :test #'equal)
+
+(alexandria:define-constant +pauli-y+ (list (list 0 (- +i+)) (list +i+ 0)) :test #'equal)
+
+(alexandria:define-constant +pauli-z+ (list (list 1 0) (list 0 -1)) :test #'equal)
 
 (defun custom-sin (angle)
   (if (zerop (mod angle pi))
@@ -55,7 +65,7 @@
 			(- (mod phi (* 2 pi)) (* 2 pi)))))
     (setf (a qubit) (custom-cos (/ normalized-theta 2))
 	  (b qubit) (* (custom-sin (/ normalized-theta 2))
-		       (exp (* i normalized-phi))))))
+		       (exp (* +i+ normalized-phi))))))
 
 (defun quadratic-norm (number)
   (expt (abs number) 2))
@@ -69,10 +79,23 @@
 		       (/ b (abs b))
 		       (/ (abs a) a)))))
 
+(defmethod set-wave-function ((qubit qubit) wave-function)
+  (set-probability-amplitude qubit
+			     (first wave-function)
+			     (second wave-function)))
+
 (defmethod measure ((qubit qubit))
-  (with-slots (a b) qubit
-    (let ((probability (random 1.0))
-	  (probability-of-a (quadratic-norm a)))
-      (if (<= probability probability-of-a)
-	  '0
-	  '1))))
+  (if (<= (random 1.0) (quadratic-norm (a qubit)))
+      +ket-0+
+      +ket-1+))
+
+(defmethod simulate ((qubit qubit) &optional (times 1000))
+  (let ((measures (loop repeat times collecting (measure qubit))))
+    (format t "0: ~a%~%1: ~a%~%"
+	    (* 100 (float (/ (count +ket-0+ measures) times)))
+	    (* 100 (float (/ (count +ket-1+ measures) times))))))
+
+(defmethod dot (a b)
+  (mapcar #'(lambda (c)
+	      (reduce #'+ (mapcar #'* a c)))
+	  b))
