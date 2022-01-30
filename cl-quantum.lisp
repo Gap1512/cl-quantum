@@ -11,11 +11,31 @@
 
 (alexandria:define-constant +ket-1+ :1)
 
+(alexandria:define-constant +zero+ (list (list 0 0) (list 0 0)) :test #'equal)
+
+(alexandria:define-constant +identity+ (list (list 1 0) (list 0 1)) :test #'equal)
+
 (alexandria:define-constant +pauli-x+ (list (list 0 1) (list 1 0)) :test #'equal)
 
 (alexandria:define-constant +pauli-y+ (list (list 0 (- +i+)) (list +i+ 0)) :test #'equal)
 
 (alexandria:define-constant +pauli-z+ (list (list 1 0) (list 0 -1)) :test #'equal)
+
+(alexandria:define-constant +ket-0-bra-0+ (list (list 1 0) (list 0 0)) :test #'equal)
+
+(alexandria:define-constant +ket-0-bra-1+ (list (list 0 1) (list 0 0)) :test #'equal)
+
+(alexandria:define-constant +ket-1-bra-0+ (list (list 0 0) (list 1 0)) :test #'equal)
+
+(alexandria:define-constant +ket-1-bra-1+ (list (list 0 0) (list 0 1)) :test #'equal)
+
+(alexandria:define-constant +sqrt-not+ (scalar 0.5 (list (list (+ 1 +i+) (- 1 +i+))
+							 (list (- 1 +i+) (+ 1 +i+))))
+  :test #'equal)
+
+(alexandria:define-constant +hadamard+ (scalar (/ (sqrt 2)) (list (list 1 1)
+								  (list 1 (- 1))))
+  :test #'equal)
 
 (defun custom-sin (angle)
   (if (zerop (mod angle pi))
@@ -49,13 +69,6 @@
   (with-slots (b) qubit
     (atan (imagpart b) (realpart b))))
 
-(defmethod cartesian ((qubit qubit))
-  (let ((theta (theta qubit))
-	(phi (phi qubit)))
-    (values (* (custom-sin theta) (custom-cos phi))
-	    (* (custom-sin theta) (custom-sin phi))
-	    (custom-cos theta))))
-
 (defmethod set-bloch-sphere ((qubit qubit) theta phi)
   (let ((normalized-theta (if (<= .0 theta pi)
 			      theta
@@ -70,14 +83,31 @@
 (defun quadratic-norm (number)
   (expt (abs number) 2))
 
+(defun practical-zerop (number)
+  (<= -1d-14 number 1d-14))
+
 (defmethod set-probability-amplitude ((qubit qubit) a b)
   (let* ((quadratic-norm-a (quadratic-norm a))
 	 (quadratic-norm-b (quadratic-norm b))
-	 (probability (+ quadratic-norm-a quadratic-norm-b)))
-    (setf (a qubit) (sqrt (/ quadratic-norm-a probability))
-	  (b qubit) (* (sqrt (/ quadratic-norm-b probability))
-		       (/ b (abs b))
-		       (/ (abs a) a)))))
+	 (probability (+ quadratic-norm-a quadratic-norm-b))
+	 (new-a (if (practical-zerop probability)
+		    0
+		    (sqrt (/ quadratic-norm-a probability))))
+	 (abs-b (abs b)))
+    (setf (a qubit) new-a
+	  (b qubit) (if (practical-zerop new-a)
+			1
+			(if (practical-zerop abs-b)
+			    0
+			    (* (sqrt (/ quadratic-norm-b probability))
+			       (/ b abs-b)
+			       (/ (abs new-a) new-a)))))))
+
+(defun make-qubit (a b)
+  (make-instance 'qubit :a a :b b))
+
+(defmethod initialize-instance :after ((qubit qubit) &key)
+  (set-probability-amplitude qubit (a qubit) (b qubit)))
 
 (defmethod set-wave-function ((qubit qubit) wave-function)
   (set-probability-amplitude qubit
@@ -95,7 +125,26 @@
 	    (* 100 (float (/ (count +ket-0+ measures) times)))
 	    (* 100 (float (/ (count +ket-1+ measures) times))))))
 
-(defmethod dot (a b)
+(defun dot (a b)
   (mapcar #'(lambda (c)
 	      (reduce #'+ (mapcar #'* a c)))
 	  b))
+
+(defun scalar (scalar a)
+  (labels ((recursive-scalar (list-or-element result)
+	     (if list-or-element
+		 (let ((first (car list-or-element)))
+		   (recursive-scalar (cdr list-or-element)				     
+				     (cons (if (consp first)
+					       (recursive-scalar first nil)
+					       (* scalar first))
+					   result)))
+		 (nreverse result))))
+    (recursive-scalar a nil)))
+
+(defun apply-gate (gate &rest qubits)
+  (case (length qubits)
+    (0 (error "You need to pass at least one qubit"))
+    (1 (let ((new-qubit (make-instance 'qubit)))
+	 (set-wave-function new-qubit (dot (wave-function (car qubits)) gate))
+	 new-qubit))))
