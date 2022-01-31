@@ -1,4 +1,4 @@
-;;;; cl-quantum.lisp
+;;;; qubit.lisp
 ;;
 ;;;; Copyright (c) 2022 Gustavo Alves Pacheco
 

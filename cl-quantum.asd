@@ -14,4 +14,5 @@
 	       (:file "math")
 	       (:file "functional-gates")
 	       (:file "constant-gates")
-               (:file "cl-quantum")))
+               (:file "qubit")
+               (:file "register")))
