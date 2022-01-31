@@ -11,4 +11,7 @@
   :serial t
   :depends-on (#:defclass-std #:alexandria)
   :components ((:file "package")
+	       (:file "math")
+	       (:file "functional-gates")
+	       (:file "constant-gates")
                (:file "cl-quantum")))

@@ -5,51 +5,6 @@
 
 (in-package #:cl-quantum)
 
-(alexandria:define-constant +i+ #C(0 1))
-
-(alexandria:define-constant +ket-0+ :0)
-
-(alexandria:define-constant +ket-1+ :1)
-
-(alexandria:define-constant +zero+ (list (list 0 0) (list 0 0)) :test #'equal)
-
-(alexandria:define-constant +identity+ (list (list 1 0) (list 0 1)) :test #'equal)
-
-(alexandria:define-constant +pauli-x+ (list (list 0 1) (list 1 0)) :test #'equal)
-
-(alexandria:define-constant +pauli-y+ (list (list 0 (- +i+)) (list +i+ 0)) :test #'equal)
-
-(alexandria:define-constant +pauli-z+ (list (list 1 0) (list 0 -1)) :test #'equal)
-
-(alexandria:define-constant +ket-0-bra-0+ (list (list 1 0) (list 0 0)) :test #'equal)
-
-(alexandria:define-constant +ket-0-bra-1+ (list (list 0 1) (list 0 0)) :test #'equal)
-
-(alexandria:define-constant +ket-1-bra-0+ (list (list 0 0) (list 1 0)) :test #'equal)
-
-(alexandria:define-constant +ket-1-bra-1+ (list (list 0 0) (list 0 1)) :test #'equal)
-
-(alexandria:define-constant +sqrt-not+ (scalar 0.5 (list (list (+ 1 +i+) (- 1 +i+))
-							 (list (- 1 +i+) (+ 1 +i+))))
-  :test #'equal)
-
-(alexandria:define-constant +hadamard+ (scalar (/ (sqrt 2)) (list (list 1 1)
-								  (list 1 (- 1))))
-  :test #'equal)
-
-(defun custom-sin (angle)
-  (if (zerop (mod angle pi))
-      0
-      (sin pi)))
-
-(defun custom-cos (angle)
-  (if (zerop (mod (+ angle (/ pi 2)) pi))
-      0
-      (cos pi)))
-
-(defun custom-angle (complex-number)
-  (atan (imagpart complex-number) (realpart complex-number)))
-
 (defclass/std qubit ()
   ((a :std 1.0)
    (b :std #C(0.0 0.0))))
@@ -79,12 +34,6 @@
     (setf (a qubit) (custom-cos (/ normalized-theta 2))
 	  (b qubit) (* (custom-sin (/ normalized-theta 2))
 		       (exp (* +i+ normalized-phi))))))
-
-(defun quadratic-norm (number)
-  (expt (abs number) 2))
-
-(defun practical-zerop (number)
-  (<= -1d-14 number 1d-14))
 
 (defmethod set-probability-amplitude ((qubit qubit) a b)
   (let* ((quadratic-norm-a (quadratic-norm a))
@@ -124,23 +73,6 @@
     (format t "0: ~a%~%1: ~a%~%"
 	    (* 100 (float (/ (count +ket-0+ measures) times)))
 	    (* 100 (float (/ (count +ket-1+ measures) times))))))
-
-(defun dot (a b)
-  (mapcar #'(lambda (c)
-	      (reduce #'+ (mapcar #'* a c)))
-	  b))
-
-(defun scalar (scalar a)
-  (labels ((recursive-scalar (list-or-element result)
-	     (if list-or-element
-		 (let ((first (car list-or-element)))
-		   (recursive-scalar (cdr list-or-element)				     
-				     (cons (if (consp first)
-					       (recursive-scalar first nil)
-					       (* scalar first))
-					   result)))
-		 (nreverse result))))
-    (recursive-scalar a nil)))
 
 (defun apply-gate (gate &rest qubits)
   (case (length qubits)
