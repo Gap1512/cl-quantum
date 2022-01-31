@@ -5,21 +5,6 @@
 
 (in-package #:cl-quantum)
 
-(defvar i #C(0 1))
-
-(defun custom-sin (angle)
-  (if (zerop (mod angle pi))
-      0
-      (sin pi)))
-
-(defun custom-cos (angle)
-  (if (zerop (mod (+ angle (/ pi 2)) pi))
-      0
-      (cos pi)))
-
-(defun custom-angle (complex-number)
-  (atan (imagpart complex-number) (realpart complex-number)))
-
 (defclass/std qubit ()
   ((a :std 1.0)
    (b :std #C(0.0 0.0))))
@@ -39,13 +24,6 @@
   (with-slots (b) qubit
     (atan (imagpart b) (realpart b))))
 
-(defmethod cartesian ((qubit qubit))
-  (let ((theta (theta qubit))
-	(phi (phi qubit)))
-    (values (* (custom-sin theta) (custom-cos phi))
-	    (* (custom-sin theta) (custom-sin phi))
-	    (custom-cos theta))))
-
 (defmethod set-bloch-sphere ((qubit qubit) theta phi)
   (let ((normalized-theta (if (<= .0 theta pi)
 			      theta
@@ -55,24 +33,50 @@
 			(- (mod phi (* 2 pi)) (* 2 pi)))))
     (setf (a qubit) (custom-cos (/ normalized-theta 2))
 	  (b qubit) (* (custom-sin (/ normalized-theta 2))
-		       (exp (* i normalized-phi))))))
-
-(defun quadratic-norm (number)
-  (expt (abs number) 2))
+		       (exp (* +i+ normalized-phi))))))
 
 (defmethod set-probability-amplitude ((qubit qubit) a b)
   (let* ((quadratic-norm-a (quadratic-norm a))
 	 (quadratic-norm-b (quadratic-norm b))
-	 (probability (+ quadratic-norm-a quadratic-norm-b)))
-    (setf (a qubit) (sqrt (/ quadratic-norm-a probability))
-	  (b qubit) (* (sqrt (/ quadratic-norm-b probability))
-		       (/ b (abs b))
-		       (/ (abs a) a)))))
+	 (probability (+ quadratic-norm-a quadratic-norm-b))
+	 (new-a (if (practical-zerop probability)
+		    0
+		    (sqrt (/ quadratic-norm-a probability))))
+	 (abs-b (abs b)))
+    (setf (a qubit) new-a
+	  (b qubit) (if (practical-zerop new-a)
+			1
+			(if (practical-zerop abs-b)
+			    0
+			    (* (sqrt (/ quadratic-norm-b probability))
+			       (/ b abs-b)
+			       (/ (abs new-a) new-a)))))))
+
+(defun make-qubit (a b)
+  (make-instance 'qubit :a a :b b))
+
+(defmethod initialize-instance :after ((qubit qubit) &key)
+  (set-probability-amplitude qubit (a qubit) (b qubit)))
+
+(defmethod set-wave-function ((qubit qubit) wave-function)
+  (set-probability-amplitude qubit
+			     (first wave-function)
+			     (second wave-function)))
 
 (defmethod measure ((qubit qubit))
-  (with-slots (a b) qubit
-    (let ((probability (random 1.0))
-	  (probability-of-a (quadratic-norm a)))
-      (if (<= probability probability-of-a)
-	  '0
-	  '1))))
+  (if (<= (random 1.0) (quadratic-norm (a qubit)))
+      +ket-0+
+      +ket-1+))
+
+(defmethod simulate ((qubit qubit) &optional (times 1000))
+  (let ((measures (loop repeat times collecting (measure qubit))))
+    (format t "0: ~a%~%1: ~a%~%"
+	    (* 100 (float (/ (count +ket-0+ measures) times)))
+	    (* 100 (float (/ (count +ket-1+ measures) times))))))
+
+(defun apply-gate (gate &rest qubits)
+  (case (length qubits)
+    (0 (error "You need to pass at least one qubit"))
+    (1 (let ((new-qubit (make-instance 'qubit)))
+	 (set-wave-function new-qubit (dot (wave-function (car qubits)) gate))
+	 new-qubit))))
